@@ -1,0 +1,11 @@
+{
+    "poc_callback": "callback",
+    "poc_file": "./modules/helloworld/helloworld.py",
+    "poc_func": "run",
+    "pool_size": 20,
+    "pool_timeout": 120,
+    "proc_num": 4,
+    "scanname": "helloworld",
+    "seedfile": "./modules/helloworld/peoples.txt",
+    "task_dir": "./tasks/test_helloworld"
+}
