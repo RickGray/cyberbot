@@ -74,18 +74,18 @@ def split_file_by_filenum(filename, filenum):
 
 
 class Config(object):
-    scanname = None
-    seedfile = None
-    task_dir = None
-    proc_num = None
-    pool_size = None
-    pool_timeout = None
-    poc_file = None
-    poc_func = None
-    poc_callback = None
+    scanname = None  # scanning task name
+    seedfile = None  # seed file path to process
+    task_dir = None  # task files stored directory
+    proc_num = None  # process number to use
+    pool_size = None  # pool task size of per process
+    pool_timeout = None  # pool task timeout of per process
+    poc_file = None  # poc file path
+    poc_func = None  # function to run in poc file
+    poc_callback = None  # callback function in poc file
 
-    scan_func = None
-    scan_callback = None
+    scan_func = None  # function method instance
+    scan_callback = None  # callback method instance
 
     def from_keys(self, keys):
         for k, v in keys.items():
@@ -151,7 +151,7 @@ class ProcessTask(object):
             po.kill()
 
 
-class Laucher(object):
+class Launcher(object):
     def __init__(self, options):
         self.config = Config()
         self.init_conf(options)
@@ -203,7 +203,7 @@ class Laucher(object):
                                                 os.path.basename(poc_file)))
         self.config.task_dir = task_dir
 
-        # dump options to json file in task_dir
+        # dump options to json file in task directory
         d_opts = vars(self.config)
         conffile = os.path.join(task_dir, 'config.json')
         with open(conffile, 'w') as f:
@@ -288,5 +288,5 @@ def commands():
 if __name__ == '__main__':
     print BANNER
     args = commands()
-    launcher = Laucher(args)
+    launcher = Launcher(args)
     launcher.run()
