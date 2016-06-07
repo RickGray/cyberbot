@@ -24,8 +24,16 @@ Start with a JSON configuration file loaded:
 
 Or override options with commands:
 
-    python cyberbot.py -n helloworld -r modules/helloworld/helloworld.py -t modules/helloworld/peoples.txt --poc-func=run --poc-callback=callback --task-dir=tasks/test_helloworld --proc-num=4 --pool-size=20 --pool-timeout=120
-    
+    python cyberbot.py -n helloworld \
+                       -r modules/helloworld/helloworld.py \
+                       -t modules/helloworld/peoples.txt \
+                       --poc-func=run \
+                       --poc-callback=callback \
+                       --task-dir=tasks/test_helloworld \
+                       --proc-num=4 \
+                       --pool-size=20 \
+                       --pool-timeout=120
+
 To get a list of all options use:
 
     python cyberbot.py -h
