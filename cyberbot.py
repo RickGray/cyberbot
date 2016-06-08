@@ -209,6 +209,8 @@ class Launcher(object):
         with open(conffile, 'w') as f:
             f.write(json.dumps(d_opts, indent=4, sort_keys=True))
 
+        os.chdir(self.config.task_dir)
+
     def init_mod(self):
         sys.path.append(
             os.path.abspath(os.path.dirname(self.config.poc_file)))
