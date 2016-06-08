@@ -5,6 +5,7 @@ import os
 import sys
 import json
 import math
+import time
 import shutil
 
 from argparse import ArgumentParser
@@ -197,21 +198,26 @@ class Launcher(object):
         if not os.path.exists(task_dir):
             os.makedirs(task_dir)
 
-        shutil.copy(seedfile, task_dir)
-        self.config.seedfile = os.path.realpath(os.path.join(task_dir,
+        timestamp = time.strftime('%Y%m%d-%H%M%S', time.localtime())
+        task_runtime_dir = os.path.join(task_dir, timestamp)
+        if not os.path.exists(task_runtime_dir):
+            os.makedirs(task_runtime_dir)
+
+        shutil.copy(seedfile, task_runtime_dir)
+        self.config.seedfile = os.path.realpath(os.path.join(task_runtime_dir,
                                                 os.path.basename(seedfile)))
-        shutil.copy(poc_file, task_dir)
-        self.config.poc_file = os.path.realpath(os.path.join(task_dir,
+        shutil.copy(poc_file, task_runtime_dir)
+        self.config.poc_file = os.path.realpath(os.path.join(task_runtime_dir,
                                                 os.path.basename(poc_file)))
         self.config.task_dir = task_dir
 
         # dump options to json file in task directory
         d_opts = vars(self.config)
-        conffile = os.path.join(task_dir, 'config.json')
+        conffile = os.path.join(task_runtime_dir, 'config.json')
         with open(conffile, 'w') as f:
             f.write(json.dumps(d_opts, indent=4, sort_keys=True))
 
-        os.chdir(self.config.task_dir)
+        os.chdir(task_runtime_dir)
 
     def init_mod(self):
         sys.path.append(
