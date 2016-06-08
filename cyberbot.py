@@ -68,6 +68,8 @@ def split_file_by_filenum(filename, filenum):
         filenames = [filename]
     else:
         linenum = count_file_linenum(filename)
+        if linenum < filenum:
+            raise OptException('proc_num more than line number of seed file')
         linenum_of_perfile = int(math.ceil(linenum / float(filenum)))
         filenames = split_file_by_linenum(filename, linenum_of_perfile)
     return filenames
