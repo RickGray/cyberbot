@@ -198,10 +198,11 @@ class Launcher(object):
         if not os.path.exists(task_dir):
             os.makedirs(task_dir)
 
-        timestamp = time.strftime('%Y%m%d-%H%M%S', time.localtime())
-        task_runtime_dir = os.path.join(task_dir, timestamp)
-        if not os.path.exists(task_runtime_dir):
-            os.makedirs(task_runtime_dir)
+        # timestamp = time.strftime('%Y%m%d-%H%M%S', time.localtime())
+        # task_runtime_dir = os.path.join(task_dir, timestamp)
+        # if not os.path.exists(task_runtime_dir):
+        #     os.makedirs(task_runtime_dir)
+        task_runtime_dir = task_dir
 
         shutil.copy(seedfile, task_runtime_dir)
         self.config.seedfile = os.path.realpath(os.path.join(task_runtime_dir,
@@ -296,7 +297,5 @@ def commands():
 
 
 if __name__ == '__main__':
-    print BANNER
-    args = commands()
-    launcher = Launcher(args)
+    launcher = Launcher(commands())
     launcher.run()
