@@ -147,12 +147,16 @@ class ConsoleMonitor(object):
                                 format='%(message)s',
                                 filename='output.log',
                                 filemode='w')
+            last_rows, last_columns = self.stdscr.getmaxyx()
             while any(p.is_alive() for p in self.processes):
                 time.sleep(0.2)
                 rows, columns = self.stdscr.getmaxyx()
+                if rows != last_rows or columns != last_columns:
+                    last_rows, last_columns = rows, columns
+                    self.stdscr.clear()
+
                 logo = '-------- cyberbot --------'.center(columns - 2)
                 self.pgsscr = self.stdscr.subwin(8, columns - 2, 3, 1)
-                self.stdscr.clear()
                 self.stdscr.addstr(1, 1, logo, curses.A_REVERSE)
                 self.stdscr.border(0)
                 self.stdscr.refresh()
