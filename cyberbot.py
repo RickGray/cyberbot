@@ -7,21 +7,22 @@ import json
 import math
 import time
 import shutil
+import curses
+import logging
 
+from io import StringIO
 from argparse import ArgumentParser
 from itertools import chain
 from itertools import islice
+from multiprocessing import Queue
 from multiprocessing import Process
+from multiprocessing import current_process
 
 from gevent import pool
 from gevent import monkey
 from gevent import timeout
 
 monkey.patch_socket()
-
-
-class OptException(Exception):
-    pass
 
 
 def count_file_linenum(filename):
@@ -76,6 +77,10 @@ def split_file_by_filenum(filename, filenum):
     return filenames
 
 
+class OptException(Exception):
+    pass
+
+
 class Config(object):
     scanname = None  # scanning task name
     seedfile = None  # seed file path to process
@@ -86,6 +91,8 @@ class Config(object):
     poc_file = None  # poc file path
     poc_func = None  # function to run in poc file
     poc_callback = None  # callback function in poc file
+
+    enable_console = None  # console monitor on/off
 
     scan_func = None  # function method instance
     scan_callback = None  # callback method instance
@@ -115,6 +122,73 @@ class Config(object):
                     poc_callback=self.poc_callback)
 
 
+class ConsoleMonitor(object):
+    def __init__(self, config, processes, progress_queue, output_queue):
+        self.config = config
+        self.processes = processes
+        self.progress_queue = progress_queue
+        self.output_queue = output_queue
+
+        self.stdscr = None
+        self.pgsscr = None
+        self.optscr = None
+
+        self.init_scr()
+
+    def init_scr(self):
+        self.stdscr = curses.initscr()
+
+        curses.noecho()
+        curses.curs_set(0)
+
+    def run(self):
+        def monitor(progress_queue, output_queue):
+            logging.basicConfig(level=logging.INFO,
+                                format='%(message)s',
+                                filename='output.log',
+                                filemode='w')
+            while any(p.is_alive() for p in self.processes):
+                time.sleep(0.2)
+                rows, columns = self.stdscr.getmaxyx()
+                logo = '-------- cyberbot --------'.center(columns - 2)
+                self.pgsscr = self.stdscr.subwin(8, columns - 2, 3, 1)
+                self.stdscr.clear()
+                self.stdscr.addstr(1, 1, logo, curses.A_REVERSE)
+                self.stdscr.border(0)
+                self.stdscr.refresh()
+
+                while not progress_queue.empty():
+                    proc_name, progress = progress_queue.get()
+                    i = int(proc_name.split('-')[1])
+                    bar = ('=' * int(progress * (columns - 35)))
+                    bar = bar.ljust(columns - 35)
+                    status = '{} [{}] {}%'.format(proc_name,
+                                                  bar,
+                                                  round(progress * 100, 2))
+                    self.pgsscr.addstr(i, 2, status)
+                    self.pgsscr.refresh()
+
+                while not output_queue.empty():
+                    proc_name, output = output_queue.get()
+                    logging.info('{}'.format(output))
+
+        monitor(self.progress_queue, self.output_queue)
+
+        curses.endwin()
+
+
+class ProcessIO(StringIO):
+    def __init__(self, output_queue, *args, **kwargs):
+        super(StringIO, self).__init__(*args, **kwargs)
+        self.output_queue = output_queue
+        self.proc_name = current_process().name
+
+    def write(self, s):
+        if s == '\n':
+            return
+        self.output_queue.put((self.proc_name, s.strip()))
+
+
 class ProcessTask(object):
     def __init__(self, scan_func, pool_size, pool_timeout):
         self.scan_func = scan_func
@@ -138,14 +212,27 @@ class ProcessTask(object):
             result['data'] = data
         return result
 
-    def run(self, seedfile):
+    def run(self, seedfile, progress_queue, output_queue):
+        task_total = count_file_linenum(seedfile)
+        proc_name = current_process().name
+        sys.stdout = ProcessIO(output_queue)
+
+        def progress_tracking(greenlet):
+            count = getattr(progress_tracking, 'count', 0) + 1.0
+            progress = count / task_total
+            setattr(progress_tracking, 'count', count)
+            progress_queue.put((proc_name, progress))
+            return greenlet
+
         po = pool.Pool(self.pool_size)
         with open(seedfile) as f:
             for line in f:
-                po.add(po.apply_async(func=self.pool_task_with_timeout,
-                                      args=(line, ),
-                                      kwds=None,
-                                      callback=self.callback))
+                g = po.apply_async(func=self.pool_task_with_timeout,
+                                   args=(line, ),
+                                   kwds=None,
+                                   callback=self.callback)
+                g.link(progress_tracking)
+                po.add(g)
 
         try:
             po.join()
@@ -234,6 +321,8 @@ class Launcher(object):
         """ Start ProcessTask main function """
         filenames = split_file_by_filenum(self.config.seedfile,
                                           self.config.proc_num)
+        output_queue = Queue()
+        progress_queue = Queue()
         processes = []
         w = ProcessTask(self.config.scan_func,
                         self.config.pool_size,
@@ -242,17 +331,39 @@ class Launcher(object):
             w.callback = self.config.scan_callback
 
         for i, filename in enumerate(filenames):
-            proc_name = 'launcher_{}_{:02d}'.format(self.config.scanname, i)
+            proc_name = 'Worker-{:<2d}'.format(i+1)
             p = Process(name=proc_name,
                         target=w.run,
-                        args=(filename, ))
+                        args=(filename, progress_queue, output_queue))
             if p not in processes:
                 processes.append(p)
 
         for p in processes:
             p.start()
-        for p in processes:
-            p.join()
+
+        if self.config.enable_console:
+            monitor = ConsoleMonitor(self.config,
+                                     processes,
+                                     progress_queue,
+                                     output_queue)
+            monitor.run()
+
+        else:
+            file_handler = logging.FileHandler('output.log', mode='w')
+            file_handler.setFormatter(logging.Formatter('%(message)s'))
+            file_handler.setLevel(logging.INFO)
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(logging.Formatter('%(message)s'))
+            stream_handler.setLevel(logging.INFO)
+            logging.getLogger().setLevel(logging.DEBUG)
+            logging.getLogger().addHandler(file_handler)
+            logging.getLogger().addHandler(stream_handler)
+
+            while any(p.is_alive() for p in processes):
+                time.sleep(0.1)
+                while not output_queue.empty():
+                    proc_name, output = output_queue.get()
+                    logging.info('{}'.format(output))
 
 
 BANNER = '''
@@ -292,6 +403,10 @@ def commands():
                         type=int, help='pool size in per process')
     parser.add_argument('--pool-timeout', dest='POOL_TIMEOUT',
                         type=int, help='pool timeout in per process')
+
+    parser.add_argument('--enable-console', dest='ENABLE_CONSOLE',
+                        action='store_true', default=False,
+                        help='enable real-time console monitor')
 
     return parser.parse_args()
 
