@@ -1,3 +1,6 @@
+import time
+
+
 def run(seed):
     """ function to run
 
@@ -14,7 +17,7 @@ def run(seed):
 
 def callback(result):
     """ callback function to call
-    
+
     Args:
         result: ProcessTask instance pool_task_with_timeout() method returned
 
@@ -23,8 +26,6 @@ def callback(result):
             'data': 'Hello World! Jone',
             'exception': None
         }
-
-        or 
 
         result = {
             'seed': 'Jone',
@@ -39,6 +40,7 @@ def callback(result):
     seed = result['seed']
     data = result['data']
     exception = result['exception']
+    time.sleep(0.05)
 
     print('seed: "{}", data: "{}", exception: "{}"'
           .format(seed, data, exception))
