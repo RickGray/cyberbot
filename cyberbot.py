@@ -131,52 +131,80 @@ class ConsoleMonitor(object):
 
         self.stdscr = None
         self.pgsscr = None
+        self.cntscr = None
         self.optscr = None
+
+        self.curt_rows = None
+        self.curt_columns = None
+        self.task_total = None
+        self.task_num = None
+        self.start_time = time.time()
+        self.progress = {}
 
         self.init_scr()
 
     def init_scr(self):
         self.stdscr = curses.initscr()
-
         curses.noecho()
         curses.curs_set(0)
 
+        self.curt_rows, self.curt_columns = self.stdscr.getmaxyx()
+        self.task_total = count_file_linenum(self.config.seedfile)
+
+        self.pgsscr = curses.newpad(self.config.proc_num+2, 40)
+        self.cntscr = curses.newpad(4, 40)
+        self.optscr = curses.newpad(18, 80)
+
+    def build_progress_screen(self):
+        c_rows = self.config.proc_num + 2
+        c_columns = 40 if self.curt_columns / 2 < 40 else self.curt_columns / 2
+        self.pgsscr.resize(c_rows, c_columns)
+        bar_max = (25 if self.curt_columns / 2 < 40
+                   else self.curt_columns / 2 - 15)
+
+        while not self.progress_queue.empty():
+            proc_name, count, task_total = self.progress_queue.get()
+            self.progress[proc_name] = count
+            i = int(proc_name.split('-')[1])
+            pct = float(count) / task_total
+            bar = ('='*int(pct*bar_max)).ljust(bar_max)
+            o = ' {:<2d} [{}{:>6.2f}%] '.format(i, bar, pct*100)
+            self.pgsscr.addstr(i, 0, o)
+
+        self.pgsscr.refresh(0, 0, 0, 0, c_rows, c_columns)
+
+    def build_status_screen(self):
+        c_rows = self.config.proc_num + 2
+        c_columns = 40 if self.curt_columns / 2 < 40 else self.curt_columns / 2
+        self.cntscr.resize(c_rows, c_columns)
+        self.task_num = sum([v for k, v in self.progress.items()])
+        running_time = time.strftime('%H:%M:%S',
+                                     time.gmtime(time.time()-self.start_time))
+        self.cntscr.addstr(1, 0, 'Total: {}'.format(self.task_total))
+        self.cntscr.addstr(2, 0, 'Current: {}'.format(self.task_num))
+        self.cntscr.addstr(4, 0, 'Running Time: {}'.format(running_time))
+        self.cntscr.refresh(0, 0, 0, c_columns, c_rows, c_columns*2)
+
+    def build_output_screen(self):
+        pass
+
     def run(self):
-        def monitor(progress_queue, output_queue):
-            logging.basicConfig(level=logging.INFO,
-                                format='%(message)s',
-                                filename='output.log',
-                                filemode='w')
-            last_rows, last_columns = self.stdscr.getmaxyx()
-            while any(p.is_alive() for p in self.processes):
-                time.sleep(0.2)
-                rows, columns = self.stdscr.getmaxyx()
-                if rows != last_rows or columns != last_columns:
-                    last_rows, last_columns = rows, columns
-                    self.stdscr.clear()
+        while any(_.is_alive() for _ in self.processes):
+            time.sleep(0.5)
+            self.curt_rows, self.curt_columns = self.stdscr.getmaxyx()
+            self.build_progress_screen()
+            self.build_status_screen()
 
-                logo = '-------- cyberbot --------'.center(columns - 2)
-                self.pgsscr = self.stdscr.subwin(8, columns - 2, 3, 1)
-                self.stdscr.addstr(1, 1, logo, curses.A_REVERSE)
-                self.stdscr.border(0)
-                self.stdscr.refresh()
+            # terminate manually when all tasks finished
+            if self.task_num == self.task_total:
+                for _ in self.processes:
+                    _.terminate()
 
-                while not progress_queue.empty():
-                    proc_name, progress = progress_queue.get()
-                    i = int(proc_name.split('-')[1])
-                    bar = ('=' * int(progress * (columns - 35)))
-                    bar = bar.ljust(columns - 35)
-                    status = '{} [{}] {}%'.format(proc_name,
-                                                  bar,
-                                                  round(progress * 100, 2))
-                    self.pgsscr.addstr(i, 2, status)
-                    self.pgsscr.refresh()
-
-                while not output_queue.empty():
-                    proc_name, output = output_queue.get()
-                    logging.info('{}'.format(output))
-
-        monitor(self.progress_queue, self.output_queue)
+        self.stdscr.addstr(self.curt_rows-2, 0,
+                           'Done! please type "q" to exit.')
+        self.stdscr.refresh()
+        while self.stdscr.getch() != ord('q'):
+            time.sleep(1)
 
         curses.endwin()
 
@@ -222,10 +250,9 @@ class ProcessTask(object):
         sys.stdout = ProcessIO(output_queue)
 
         def progress_tracking(greenlet):
-            count = getattr(progress_tracking, 'count', 0) + 1.0
-            progress = count / task_total
+            count = getattr(progress_tracking, 'count', 0) + 1
             setattr(progress_tracking, 'count', count)
-            progress_queue.put((proc_name, progress))
+            progress_queue.put((proc_name, count, task_total))
             return greenlet
 
         po = pool.Pool(self.pool_size)
