@@ -134,12 +134,16 @@ class ConsoleMonitor(object):
         self.cntscr = None
         self.optscr = None
 
-        self.curt_rows = None
-        self.curt_columns = None
+        self.stdscr_size = None
+        self.pgsscr_size = None
+        self.cntscr_size = None
+        self.optscr_size = None
+
         self.task_total = None
         self.task_num = None
         self.start_time = time.time()
         self.progress = {}
+        self.contents = []
 
         self.init_scr()
 
@@ -148,19 +152,24 @@ class ConsoleMonitor(object):
         curses.noecho()
         curses.curs_set(0)
 
-        self.curt_rows, self.curt_columns = self.stdscr.getmaxyx()
+        self.stdscr_size = self.stdscr.getmaxyx()
         self.task_total = count_file_linenum(self.config.seedfile)
 
-        self.pgsscr = curses.newpad(self.config.proc_num+2, 40)
-        self.cntscr = curses.newpad(4, 40)
-        self.optscr = curses.newpad(18, 80)
+        self.pgsscr_size = (self.config.proc_num + 2, 40)
+        self.pgsscr = curses.newpad(*self.pgsscr_size)
+        self.cntscr_size = (4, 40)
+        self.cntscr = curses.newpad(*self.cntscr_size)
+        self.optscr_size = (18, 80)
+        self.optscr = curses.newpad(*self.optscr_size)
 
     def build_progress_screen(self):
         c_rows = self.config.proc_num + 2
-        c_columns = 40 if self.curt_columns / 2 < 40 else self.curt_columns / 2
-        self.pgsscr.resize(c_rows, c_columns)
-        bar_max = (25 if self.curt_columns / 2 < 40
-                   else self.curt_columns / 2 - 15)
+        c_columns = (40 if self.stdscr_size[1] / 2 < 40
+                     else self.stdscr_size[1] / 2)
+        self.pgsscr_size = (c_rows, c_columns)
+        self.pgsscr.resize(*self.pgsscr_size)
+        bar_max = (25 if self.pgsscr_size[1]  < 40
+                   else self.pgsscr_size[1] - 15)
 
         while not self.progress_queue.empty():
             proc_name, count, task_total = self.progress_queue.get()
@@ -175,32 +184,62 @@ class ConsoleMonitor(object):
 
     def build_status_screen(self):
         c_rows = self.config.proc_num + 2
-        c_columns = 40 if self.curt_columns / 2 < 40 else self.curt_columns / 2
-        self.cntscr.resize(c_rows, c_columns)
+        c_columns = (40 if self.stdscr_size[1 ]/ 2 < 40
+                     else self.stdscr_size[1] / 2)
+        self.cntscr_size = (c_rows, c_columns)
         self.task_num = sum([v for k, v in self.progress.items()])
         running_time = time.strftime('%H:%M:%S',
                                      time.gmtime(time.time()-self.start_time))
+        self.cntscr.resize(*self.cntscr_size)
         self.cntscr.addstr(1, 0, 'Total: {}'.format(self.task_total))
         self.cntscr.addstr(2, 0, 'Current: {}'.format(self.task_num))
         self.cntscr.addstr(4, 0, 'Running Time: {}'.format(running_time))
         self.cntscr.refresh(0, 0, 0, c_columns, c_rows, c_columns*2)
 
     def build_output_screen(self):
-        pass
+        offset_rows = max(self.pgsscr_size[0], self.cntscr_size[0])
+        c_rows = self.stdscr_size[0] - offset_rows
+        c_columns = self.stdscr_size[1]
+
+        self.optscr_size = (c_rows, c_columns)
+        self.optscr.resize(*self.optscr_size)
+        self.optscr.border(1, 1, 0, 0)
+
+        if len(self.contents) > c_rows:
+            self.contents = self.contents[len(self.contents)-c_rows+1:]
+        else:
+            self.contents.extend(['']*(c_rows-len(self.contents)-1))
+
+        while not self.output_queue.empty():
+            proc_name, output = self.output_queue.get()
+            # o = ('[{}]({}):{}'
+            #      .format(time.strftime('%T %d,%B %Y', time.localtime()),
+            #              proc_name.strip(), output))
+            o = '{}'.format(output)
+            self.contents = self.contents[1:]
+            self.contents.append(o if len(o) < c_columns else o[:c_columns])
+            self.optscr.move(0, 0)
+            self.optscr.clrtobot()
+            for i, v in enumerate(self.contents):
+                self.optscr.addstr(i, 0, v)
+
+            self.optscr.refresh(0, 0, offset_rows, 0,
+                                c_rows + offset_rows, c_columns)
 
     def run(self):
         while any(_.is_alive() for _ in self.processes):
-            time.sleep(0.5)
-            self.curt_rows, self.curt_columns = self.stdscr.getmaxyx()
+            time.sleep(0.2)
+            self.stdscr_size = self.stdscr.getmaxyx()
             self.build_progress_screen()
             self.build_status_screen()
+            self.build_output_screen()
 
             # terminate manually when all tasks finished
             if self.task_num == self.task_total:
                 for _ in self.processes:
                     _.terminate()
 
-        self.stdscr.addstr(self.curt_rows-2, 0,
+        self.stdscr.addstr(self.stdscr_size[0] - 2, 0,
                            'Done! please type "q" to exit.')
         self.stdscr.refresh()
         while self.stdscr.getch() != ord('q'):
