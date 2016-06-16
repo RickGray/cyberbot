@@ -1,6 +1,6 @@
 # cyberbot
 
-Cyberbot is a lightweight batch scanning framework based on gevent. Security researchers wrote many sample PoCs for vulnerabilities, using cyberbot framework to do batch scanning easily. 
+Cyberbot is a lightweight batch scanning framework based on gevent. Security researchers wrote many sample PoCs for vulnerabilities, using cyberbot framework to do batch scanning easily.
 
 Install
 ----
@@ -37,3 +37,7 @@ Or override options with commands:
 To get a list of all options use:
 
     python cyberbot.py -h
+
+Also can run console monitor with `--enable-console` option:
+
+![](screenshots/console_monitor.gif)
