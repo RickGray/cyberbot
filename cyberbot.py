@@ -168,7 +168,7 @@ class ConsoleMonitor(object):
                      else self.stdscr_size[1] / 2)
         self.pgsscr_size = (c_rows, c_columns)
         self.pgsscr.resize(*self.pgsscr_size)
-        bar_max = (25 if self.pgsscr_size[1]  < 40
+        bar_max = (25 if self.pgsscr_size[1] < 40
                    else self.pgsscr_size[1] - 15)
 
         while not self.progress_queue.empty():
@@ -184,7 +184,7 @@ class ConsoleMonitor(object):
 
     def build_status_screen(self):
         c_rows = self.config.proc_num + 2
-        c_columns = (40 if self.stdscr_size[1 ]/ 2 < 40
+        c_columns = (40 if self.stdscr_size[1] / 2 < 40
                      else self.stdscr_size[1] / 2)
         self.cntscr_size = (c_rows, c_columns)
         self.task_num = sum([v for k, v in self.progress.items()])
