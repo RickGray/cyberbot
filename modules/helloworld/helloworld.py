@@ -1,4 +1,5 @@
 import time
+import random
 
 
 def run(seed):
@@ -40,7 +41,6 @@ def callback(result):
     seed = result['seed']
     data = result['data']
     exception = result['exception']
-    time.sleep(0.05)
-
+    time.sleep(random.random() * random.random() / 50)
     print('seed: "{}", data: "{}", exception: "{}"'
           .format(seed, data, exception))
