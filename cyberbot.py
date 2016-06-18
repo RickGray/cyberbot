@@ -319,12 +319,13 @@ class Launcher(object):
         self.init_mod()
 
     def init_conf(self, options):
-        if options.CONFIG:
-            self.config.from_jsonfile(options.CONFIG)
+        config = options.CONFIG
         opts = vars(options)
         opts.pop('CONFIG')
         opts = dict((k.lower(), v) for k, v in opts.items())
         self.config.from_keys(opts)
+        if config:
+            self.config.from_jsonfile(config)
 
         # check options required
         for k, v in opts.items():
@@ -467,11 +468,11 @@ def commands():
 
     parser.add_argument('--task-dir', dest='TASK_DIR',
                         help='task files stored directory')
-    parser.add_argument('--proc-num', dest='PROC_NUM',
+    parser.add_argument('--proc-num', dest='PROC_NUM', default=4,
                         type=int, help='process numbers to run')
-    parser.add_argument('--pool-size', dest='POOL_SIZE',
+    parser.add_argument('--pool-size', dest='POOL_SIZE', default=100,
                         type=int, help='pool size in per process')
-    parser.add_argument('--pool-timeout', dest='POOL_TIMEOUT',
+    parser.add_argument('--pool-timeout', dest='POOL_TIMEOUT', default=180,
                         type=int, help='pool timeout in per process')
 
     parser.add_argument('--enable-console', dest='ENABLE_CONSOLE',
