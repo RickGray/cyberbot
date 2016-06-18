@@ -123,6 +123,9 @@ class Config(object):
 
 
 class ConsoleMonitor(object):
+    """ Console monitor with buildin module "curses"
+    dococument: https://docs.python.org/2/library/curses.html
+    """
     def __init__(self, config, processes, progress_queue, output_queue):
         self.config = config
         self.processes = processes
