@@ -200,6 +200,7 @@ class ConsoleMonitor(object):
         self.cntscr.refresh(0, 0, 0, c_columns, c_rows, c_columns*2)
 
     def build_output_screen(self):
+        without_stream_logger = logging.getLogger('output.without.stream')
         offset_rows = max(self.pgsscr_size[0], self.cntscr_size[0])
         c_rows = self.stdscr_size[0] - offset_rows
         c_columns = self.stdscr_size[1]
@@ -219,6 +220,8 @@ class ConsoleMonitor(object):
             #      .format(time.strftime('%T %d,%B %Y', time.localtime()),
             #              proc_name.strip(), output))
             o = '{}'.format(output)
+            without_stream_logger.info(o)
+
             self.contents = self.contents[1:]
             self.contents.append(o if len(o) < c_columns else o[:c_columns])
             self.optscr.move(0, 0)
@@ -231,7 +234,7 @@ class ConsoleMonitor(object):
 
     def run(self):
         while any(_.is_alive() for _ in self.processes):
-            time.sleep(0.2)
+            time.sleep(0.1)
             self.stdscr_size = self.stdscr.getmaxyx()
             self.build_progress_screen()
             self.build_status_screen()
@@ -320,6 +323,7 @@ class Launcher(object):
         self.init_conf(options)
         self.init_env()
         self.init_mod()
+        self.init_logger()
 
     def init_conf(self, options):
         config = options.CONFIG
@@ -391,6 +395,25 @@ class Launcher(object):
             self.config.scan_callback = getattr(poc_mod,
                                                 self.config.poc_callback)
 
+    def init_logger(self):
+        output_file_handler = logging.FileHandler('output.log', mode='w')
+        output_file_handler.setFormatter(logging.Formatter('%(message)s'))
+        output_file_handler.setLevel(logging.INFO)
+
+        output_stream_handdler = logging.StreamHandler()
+        output_stream_handdler.setFormatter(logging.Formatter('%(message)s'))
+        output_stream_handdler.setLevel(logging.INFO)
+
+        with_stream_logger = logging.getLogger('output.with.stream')
+        without_stream_logger = logging.getLogger('output.without.stream')
+
+        with_stream_logger.addHandler(output_file_handler)
+        with_stream_logger.addHandler(output_stream_handdler)
+        with_stream_logger.setLevel(logging.DEBUG)
+
+        without_stream_logger.addHandler(output_file_handler)
+        without_stream_logger.setLevel(logging.DEBUG)
+
     def run(self):
         """ Start ProcessTask main function """
         filenames = split_file_by_filenum(self.config.seedfile,
@@ -423,21 +446,24 @@ class Launcher(object):
             monitor.run()
 
         else:
-            file_handler = logging.FileHandler('output.log', mode='w')
-            file_handler.setFormatter(logging.Formatter('%(message)s'))
-            file_handler.setLevel(logging.INFO)
-            stream_handler = logging.StreamHandler()
-            stream_handler.setFormatter(logging.Formatter('%(message)s'))
-            stream_handler.setLevel(logging.INFO)
-            logging.getLogger().setLevel(logging.DEBUG)
-            logging.getLogger().addHandler(file_handler)
-            logging.getLogger().addHandler(stream_handler)
+            progress = {}
+            task_total = count_file_linenum(self.config.seedfile)
+            task_num = 0
+            with_stream_logger = logging.getLogger('output.with.stream')
 
             while any(p.is_alive() for p in processes):
                 time.sleep(0.1)
+                while not progress_queue.empty():
+                    proc_name, count, task_total = progress_queue.get()
+                    progress[proc_name] = count
+                    task_num = sum([v for k, v in progress.items()])
                 while not output_queue.empty():
                     proc_name, output = output_queue.get()
-                    logging.info('{}'.format(output))
+                    with_stream_logger.info('{}'.format(output))
+
+                if task_num == task_total:
+                    for _ in processes:
+                        _.terminate()
 
 
 BANNER = '''
@@ -465,18 +491,24 @@ def commands():
     parser.add_argument('-r', '--poc-file', dest='POC_FILE',
                         type=str, help='poc file path to load')
     parser.add_argument('-f', '--poc-func', dest='POC_FUNC',
-                        type=str, help='function name to run in poc file')
+                        default='run', type=str,
+                        help='function name to run in poc file')
     parser.add_argument('-b', '--poc-callback', dest='POC_CALLBACK',
-                        type=str, help='callback function name in poc file')
+                        default='callback', type=str,
+                        help='callback function name in poc file')
 
     parser.add_argument('--task-dir', dest='TASK_DIR',
-                        help='task files stored directory')
-    parser.add_argument('--proc-num', dest='PROC_NUM', default=4,
-                        type=int, help='process numbers to run')
-    parser.add_argument('--pool-size', dest='POOL_SIZE', default=100,
-                        type=int, help='pool size in per process')
-    parser.add_argument('--pool-timeout', dest='POOL_TIMEOUT', default=180,
-                        type=int, help='pool timeout in per process')
+                        default='tasks/', type=str,
+                        help='task files stored directory (default: "tasks/")')
+    parser.add_argument('--proc-num', dest='PROC_NUM',
+                        default=4, type=int,
+                        help='process numbers to run (default: 4)')
+    parser.add_argument('--pool-size', dest='POOL_SIZE',
+                        default=100, type=int,
+                        help='pool size in per process (default: 100)')
+    parser.add_argument('--pool-timeout', dest='POOL_TIMEOUT',
+                        default=180, type=int,
+                        help='pool timeout in per process')
 
     parser.add_argument('--enable-console', dest='ENABLE_CONSOLE',
                         action='store_true', default=False,
