@@ -320,12 +320,12 @@ class ProcessTask(object):
 class Launcher(object):
     def __init__(self, options):
         self.config = Config()
-        self.init_conf(options)
-        self.init_env()
-        self.init_mod()
-        self.init_logger()
+        self._init_conf(options)
+        self._init_env()
+        self._init_mod()
+        self._init_logger()
 
-    def init_conf(self, options):
+    def _init_conf(self, options):
         config = options.CONFIG
         opts = vars(options)
         opts.pop('CONFIG')
@@ -342,7 +342,7 @@ class Launcher(object):
                     raise OptException('{} option required, '
                                        'use -h for help'.format(k))
 
-    def init_env(self):
+    def _init_env(self):
         cwd = os.getcwd()
         task_dir = os.path.realpath(os.path.join(cwd, self.config.task_dir))
         seedfile = os.path.realpath(os.path.join(cwd, self.config.seedfile))
@@ -385,7 +385,7 @@ class Launcher(object):
 
         os.chdir(task_runtime_dir)
 
-    def init_mod(self):
+    def _init_mod(self):
         sys.path.append(
             os.path.abspath(os.path.dirname(self.config.poc_file)))
         poc_name = os.path.splitext(os.path.basename(self.config.poc_file))[0]
@@ -395,7 +395,7 @@ class Launcher(object):
             self.config.scan_callback = getattr(poc_mod,
                                                 self.config.poc_callback)
 
-    def init_logger(self):
+    def _init_logger(self):
         output_file_handler = logging.FileHandler('output.log', mode='w')
         output_file_handler.setFormatter(logging.Formatter('%(message)s'))
         output_file_handler.setLevel(logging.INFO)
