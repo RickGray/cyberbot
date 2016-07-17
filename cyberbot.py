@@ -166,7 +166,7 @@ class ConsoleMonitor(object):
         self.optscr = curses.newpad(*self.optscr_size)
 
     def build_progress_screen(self):
-        c_rows = self.config.proc_num + 2
+        c_rows = max(self.config.proc_num + 2, 6)
         c_columns = (40 if self.stdscr_size[1] / 2 < 40
                      else self.stdscr_size[1] / 2)
         self.pgsscr_size = (c_rows, c_columns)
@@ -186,7 +186,7 @@ class ConsoleMonitor(object):
         self.pgsscr.refresh(0, 0, 0, 0, c_rows, c_columns)
 
     def build_status_screen(self):
-        c_rows = self.config.proc_num + 2
+        c_rows = max(self.config.proc_num + 2, 6)
         c_columns = (40 if self.stdscr_size[1] / 2 < 40
                      else self.stdscr_size[1] / 2)
         self.cntscr_size = (c_rows, c_columns)
