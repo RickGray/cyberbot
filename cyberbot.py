@@ -169,6 +169,7 @@ class ConsoleMonitor(object):
         c_rows = max(self.config.proc_num + 2, 6)
         c_columns = (40 if self.stdscr_size[1] / 2 < 40
                      else self.stdscr_size[1] / 2)
+        c_rows, c_columns = int(c_rows), int(c_columns)
         self.pgsscr_size = (c_rows, c_columns)
         self.pgsscr.resize(*self.pgsscr_size)
         bar_max = (25 if self.pgsscr_size[1] < 40
@@ -189,6 +190,7 @@ class ConsoleMonitor(object):
         c_rows = max(self.config.proc_num + 2, 6)
         c_columns = (40 if self.stdscr_size[1] / 2 < 40
                      else self.stdscr_size[1] / 2)
+        c_rows, c_columns = int(c_rows), int(c_columns)
         self.cntscr_size = (c_rows, c_columns)
         self.task_num = sum([v for k, v in self.progress.items()])
         running_time = time.strftime('%H:%M:%S',
@@ -201,9 +203,10 @@ class ConsoleMonitor(object):
 
     def build_output_screen(self):
         without_stream_logger = logging.getLogger('output.without.stream')
-        offset_rows = max(self.pgsscr_size[0], self.cntscr_size[0])
+        offset_rows = int(max(self.pgsscr_size[0], self.cntscr_size[0]))
         c_rows = self.stdscr_size[0] - offset_rows
         c_columns = self.stdscr_size[1]
+        c_rows, c_columns = int(c_rows), int(c_columns)
 
         self.optscr_size = (c_rows, c_columns)
         self.optscr.resize(*self.optscr_size)
